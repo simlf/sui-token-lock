@@ -1,88 +1,92 @@
-// import { useState } from 'react'
-// import reactLogo from './assets/react.svg'
-// import viteLogo from '/vite.svg'
-// import './App.css'
-//
-// function App() {
-//   const [count, setCount] = useState(0)
-//
-//   return (
-//     <>
-//       <div>
-//         <a href="https://vitejs.dev" target="_blank">
-//           <img src={viteLogo} className="logo" alt="Vite logo" />
-//         </a>
-//         <a href="https://react.dev" target="_blank">
-//           <img src={reactLogo} className="logo react" alt="React logo" />
-//         </a>
-//       </div>
-//       <h1>Vite + React</h1>
-//       <div className="card">
-//         <button onClick={() => setCount((count) => count + 1)}>
-//           count is {count}
-//         </button>
-//         <p>
-//           Edit <code>src/App.tsx</code> and save to test HMR
-//         </p>
-//       </div>
-//       <p className="read-the-docs">
-//         Click on the Vite and React logos to learn more
-//       </p>
-//     </>
-//   )
-// }
-//
-// export default App
+// Copyright (c) Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
-import { ConnectButton, useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
-import CoinLocker from './CoinLocker';
+import './App.css';
+
+import { ConnectButton, useCurrentAccount, useSuiClientContext } from '@mysten/dapp-kit';
+import { isValidSuiObjectId, normalizeSuiObjectId } from '@mysten/sui/utils';
+import { FrameIcon } from '@radix-ui/react-icons';
+import { Box, Container, Flex, Heading, Link, Text } from '@radix-ui/themes';
+import { Error } from './components/Error';
+import { networkConfig, useNetworkVariable } from './config';
+import CoinLocker from "./CoinLocker.tsx";
+import {useEffect} from "react";
 
 function App() {
-    return (
-        <div className="App">
-            <header className="App-header">
-                <ConnectButton />
-            </header>
-
-            <ConnectedAccount />
-        </div>
-    );
-}
-
-function ConnectedAccount() {
+    // // Ensure the app's network config matches the wallet's available networks, if the wallet is connected.
     const account = useCurrentAccount();
+    const ctx = useSuiClientContext();
 
-    if (!account) {
-        return null;
-    }
+    useEffect(() => {
+        const chain = account?.chains?.find((c) => c.startsWith('sui:'))?.replace(/^sui:/, '');
+        if (chain) {
+            console.debug('Configuring app for', chain);
+            ctx.selectNetwork(chain);
+        }
+    }, [account, ctx]);
+
+    //
+    // const chain = account?.chains?.find((c) => c.startsWith('sui:'))?.replace(/^sui:/, '');
+    // if (chain) {
+    //     console.debug('Configuring app for', chain);
+    //     ctx.selectNetwork(chain);
+    // }
 
     return (
-        <div>
-            <div>Connected to {account.address}</div>;
-            <OwnedObjects address={account.address} />
-            <CoinLocker />
-        </div>
+        <>
+            <Flex position="sticky" px="4" py="2" align="center" justify="between">
+                <Flex align="center" gap="1">
+                    <FrameIcon width={20} height={20} />
+                    <Heading>
+                        <Link href="/" className="home">
+                            Tic Tac Toe
+                        </Link>
+                    </Heading>
+                </Flex>
+
+                <Box>
+                    <ConnectButton />
+                </Box>
+            </Flex>
+            <Container size="1" mt="8">
+                <Content />
+            </Container>
+        </>
     );
 }
 
-function OwnedObjects({ address }: { address: string }) {
-    const { data } = useSuiClientQuery('getOwnedObjects', {
-        owner: address,
-    });
-    if (!data) {
-        return null;
-    }
+function Content() {
+    const packageId = useNetworkVariable('packageId');
 
-    return (
-        <ul>
-            {data.data.map((object) => (
-                <li key={object.data?.objectId}>
-                    <a href={`https://example-explorer.com/object/${object.data?.objectId}`}>
-                        {object.data?.objectId}
-                    </a>
-                </li>
-            ))}
-        </ul>
-    );
+    const path = location.pathname.slice(1);
+    const addr = normalizeSuiObjectId(path);
+
+    if (packageId === null) {
+        const availableNetworks = Object.keys(networkConfig).filter(
+            (n) => (networkConfig as any)[n]?.variables?.packageId,
+        );
+
+        return (
+            <Error title="App not available">
+                This app is only available on {availableNetworks.join(', ')}. Please switch your wallet to a
+                supported network.
+            </Error>
+        );
+    } else if (path === '') {
+        return <CoinLocker/>
+        // return <p>TESTTESTTESTTESTTESTTESTTESTTESTTESTTEST</p>
+        // return <Root />;
+    } else if (isValidSuiObjectId(addr)) {
+        return <CoinLocker/>
+        // return <p>TESTTESTTESTTESTTESTTESTTESTTESTTESTTEST</p>
+        // return <Game id={addr} />;
+    } else {
+        return (
+            <Error title="Invalid Game ID">
+                <code>"{path}"</code> is not a valid SUI object ID.
+            </Error>
+        );
+    }
 }
-export default App
+
+export default App;
